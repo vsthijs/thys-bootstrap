@@ -1,4 +1,5 @@
 import os
+import traceback
 from sys import argv
 
 from thyson_parser import Parser
@@ -29,7 +30,11 @@ def test_file(file: str):
         print("\b\b\bOk")
         return True
     except Exception as e:
-        print(f"\b\b\bfailed: {e}")
+        if __debug__:
+            print("\b\b\bfailed: (exception)")
+            traceback.print_exc(5)
+        else:
+            print(f"\b\b\bfailed: {e} (BUG)")
         return False
 
 
