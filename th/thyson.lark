@@ -1,0 +1,61 @@
+// thyson grammar
+
+script   : statement*
+
+statement: expression ";"
+         | var_dec_let ";"  // let variable declaration
+         | var_dec_ext ";"  // ext variable declaration
+         | var_def_expl ";" // variable definition (explicit type)
+         | var_def_impl ";" // variable definition (implicit type)
+         | const_def ";"    // constant definition
+         | fun_dec ";"      // function declaration
+         | fun_def          // function definition
+         | fun_def_nn       // anonymous function definition
+
+expression: string
+          | integer
+          | decimal
+          | name
+          | type
+          | "(" expression ")"
+          | expression BINARY_OP expression
+
+var_dec_let: "let" name type
+var_dec_ext: "ext" name type
+
+var_def_expl: "let" name type "=" expression
+var_def_impl: "let" name "=" expression
+
+fun_dec: "func" name fun_type
+fun_dec_nn: "func" fun_type
+fun_def: fun_dec "{" statement* expression? "}"
+fun_def_nn: fun_dec_nn "{" statement* expression? "}"
+
+const_def: "const" name type "=" expression
+
+type: name
+    | fun_type
+
+fun_type: "(" _fun_type_arg_list? ")" type?
+_fun_type_arg_list: _fun_type_arg | _fun_type_arg "," _fun_type_arg_list
+_fun_type_arg: name type
+
+string: ESCAPED_STRING
+integer: SIGNED_NUMBER
+decimal: "-"? DECIMAL
+name: CNAME
+BINARY_OP: "+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" | "|" | "&" | "**"
+
+
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.DECIMAL
+%import common.CNAME
+
+%import common.WS
+%import common.CPP_COMMENT
+%import common.C_COMMENT
+
+%ignore WS
+%ignore CPP_COMMENT
+%ignore C_COMMENT

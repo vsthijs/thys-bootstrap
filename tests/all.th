@@ -1,0 +1,22 @@
+// This file implements every rule in the most straightforward way
+
+// statements
+// // expression
+
+""; // string (empty)
+"hello, world"; // string
+"hello, world\n"; // string (escaped)
+"hello, \"name\""; // string (escaped)
+0;  // integer
+.1;  // decimal
+name; // name
+int; // type
+(); // function type (empty)
+() int; // function type (only rtype)
+(first int); // function type (only first arg)
+(first int) int;
+(first int, second int);
+(first int, second int) int;
+
+(""); // expression in ()
+a + b; // binary operation

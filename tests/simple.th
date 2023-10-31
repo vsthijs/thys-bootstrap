@@ -2,8 +2,8 @@
 These are simple statements like variable declaration, definition and assignment.
 */
 
-const a_message: str = "Hello, World!";
+const a_message str = "Hello, World!";
 
 
 /* FIXME: should not fail, but it does */
-const a_message: str = 9;
+const a_message str = 9;

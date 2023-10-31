@@ -1,0 +1,5 @@
+func _start(argc int, argv char) int {
+    0
+}
+
+const main (argc int, argv char) int = _start;
