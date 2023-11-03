@@ -1,9 +1,11 @@
-from th import parse, Script
-from th.interpreter import new_scope
+from th import *
 
-with open("tests/all.th") as f:
-    script = Script.from_tree(parse(f.read()))
 
-scope = new_scope()
-for ii in script.statements:
-    scope.compile(ii)
+def compile_file(_if: str, _of: str) -> None:
+    with open(_if) as f:
+        obj = compile_ir(str(compile_module(_if, parse(f.read()))))
+    with open(_of, "wb") as f:
+        f.write(obj)
+
+
+compile_file("tests/basic.th", "basic.o")

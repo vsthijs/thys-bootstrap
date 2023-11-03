@@ -6,7 +6,6 @@ statement: expression ";"
          | var_dec_let ";"  // let variable declaration
          | var_dec_ext ";"  // ext variable declaration
          | var_def_expl ";" // variable definition (explicit type)
-         | var_def_impl ";" // variable definition (implicit type)
          | const_def ";"    // constant definition
          | fun_dec ";"      // function declaration
          | fun_def          // function definition
@@ -24,7 +23,6 @@ var_dec_let: "let" name type
 var_dec_ext: "ext" name type
 
 var_def_expl: "let" name type "=" expression
-var_def_impl: "let" name "=" expression
 
 fun_dec: "func" name fun_type
 fun_dec_nn: "func" fun_type

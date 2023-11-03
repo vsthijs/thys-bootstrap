@@ -28,7 +28,6 @@ ext var_ext int;
 
 // // variable definition
 let var_def int = 0;
-let var_def = 0;
 const U8MAX usize = (2**8)-1;
 
 // // functions
