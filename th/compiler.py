@@ -32,6 +32,7 @@ BUILTIN_TYPES: dict[str, ir.Type] = {
 class Value:
     value: ir.Value
     type: ir.Type
+    const: bool = False
 
 
 class Function:
@@ -70,22 +71,35 @@ class Function:
     def resolve_name(self, name: str) -> Value:
         if name in self.locals.keys():
             return self.locals[name]
+        elif self.module and name in [_n.name for _n in self.module.functions]:
+            for fn in self.module.functions:
+                if fn.name == name:
+                    return Value(fn.type, fn)
         else:
-            raise Exception(f"unknown local '{name}'")
+            raise Exception(f"unknown name '{name}'")
 
     def as_value(self, builder: ir.IRBuilder, expr: lark.Tree[lark.Token]) -> Value:
         """Parse the expression and return a value that llvm understands."""
         mod: ir.Module = builder.module
         fn: ir.Function = builder.function
         if expr.data != "expression":
-            raise Exception("require expression")
+            raise Exception(f"require expression, got {expr.pretty()}")
 
         if expr.children[0].data == "string":
             raise NotImplementedError()
         elif expr.children[0].data == "integer":
-            raise NotImplementedError()
+            tok_int = expr.children[0]
+            _int = tok_int.children[0].value
+            return Value(ir.Constant(BUILTIN_TYPES["i32"], int(_int)), BUILTIN_TYPES["i32"])
         elif expr.children[0].data == "decimal":
             raise NotImplementedError()
+        elif expr.children[0].data == "fun_call":
+            print(expr.pretty())
+            _name = expr.children[0].children[0].children[0].value
+            _args = self._ast_fun_call_args(builder, expr.children[0])  # TODO: implement Function._ast_fun_call_args
+            _func: ir.Function = self.resolve_name(_name).type  # type: ignore
+            print(f"{_name}({_args})")
+            return Value(_func.ftype.return_type, builder.call(_func, _args))
         elif expr.children[0].data == "name":
             _name = expr.children[0].children[0].value
             return self.resolve_name(_name)
@@ -114,6 +128,7 @@ class Function:
 
         _llvm_type = self.llvm_type()
         _func_type = self.function_type()
+        self.module = module
         func = ir.Function(module, _llvm_type, self.name)
         block = func.append_basic_block("entry")
 
@@ -126,12 +141,31 @@ class Function:
         for ii in body:
             if ii.data == "statement":
                 if ii.children[0].data == "expression":
-                    self.as_value(builder, ii)
+                    self.as_value(builder, ii.children[0])
+                elif ii.children[0].data == "var_dec_let":
+                    tok_name, tok_type = ii.children[0].children
+                    _name = tok_name.children[0].value
+                    _type = self.resolve_type(tok_type)
+                    self.locals[_name] = Value(builder.alloca(_type, name=_name), _type)
+                elif ii.children[0].data == "var_def_expl":
+                    tok_name, tok_type, tok_expr = ii.children[0].children
+                    _name = tok_name.children[0].value
+                    _type = self.resolve_type(tok_type)
+                    _expr = self.as_value(builder, tok_expr)
+                    self.locals[_name] = Value(builder.alloca(_type, name=_name), _type)
+                    builder.store(_expr, self.locals[_name])
+                elif ii.children[0].data == "const_def":
+                    tok_name, tok_type, tok_expr = ii.children[0].children
+                    _name = tok_name.children[0].value
+                    _type = self.resolve_type(tok_type)
+                    _expr = self.as_value(builder, tok_expr)
+                    self.locals[_name] = Value(_expr, _type, True)
                 else:
                     raise NotImplementedError()
             elif ii.data == "expression":
                 builder.ret(self.as_value(builder, ii).value)
                 return
+        builder.ret_void()
 
 
 def compile_module(name: str, ast: lark.Tree[lark.Token]) -> ir.Module:
