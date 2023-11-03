@@ -9,3 +9,4 @@ def compile_file(_if: str, _of: str) -> None:
 
 
 compile_file("tests/basic.th", "basic.o")
+shutdown()
