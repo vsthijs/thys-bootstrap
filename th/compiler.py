@@ -4,6 +4,7 @@ Replaces ptree.py
 compiles the AST (from lark) to llvm ir (with llvmlite)
 """
 
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -11,8 +12,11 @@ import lark
 from llvmlite import ir
 
 FUNCTION_COUNTER: int = 0
+HOST_IS_64BIT = sys.maxsize > 2 ** 32
 
 BUILTIN_TYPES: dict[str, ir.Type] = {
+    "bool": ir.IntType(1),
+    "byte": ir.IntType(8),
     "u8": ir.IntType(8),
     "i8": ir.IntType(8),
     "u16": ir.IntType(16),
@@ -24,6 +28,8 @@ BUILTIN_TYPES: dict[str, ir.Type] = {
     "f16": ir.HalfType(),
     "f32": ir.FloatType(),
     "f64": ir.DoubleType(),
+    "int": ir.IntType(64) if HOST_IS_64BIT else ir.IntType(32),
+    "uint": ir.IntType(64) if HOST_IS_64BIT else ir.IntType(32),
     "none": ir.VoidType(),
 }
 
@@ -78,7 +84,8 @@ class Function:
         else:
             raise Exception(f"unknown name '{name}'")
 
-    def as_value(self, builder: ir.IRBuilder, expr: lark.Tree[lark.Token]) -> Value:
+    def as_value(self, builder: ir.IRBuilder, expr: lark.Tree[lark.Token],
+                 _expected_type: Optional[ir.Type] = None) -> Value:
         """Parse the expression and return a value that llvm understands."""
         mod: ir.Module = builder.module
         fn: ir.Function = builder.function
@@ -87,26 +94,37 @@ class Function:
 
         if expr.children[0].data == "string":
             raise NotImplementedError()
+
         elif expr.children[0].data == "integer":
             tok_int = expr.children[0]
             _int = tok_int.children[0].value
-            return Value(ir.Constant(BUILTIN_TYPES["i32"], int(_int)), BUILTIN_TYPES["i32"])
+            _type = BUILTIN_TYPES["i32"]
+            if _expected_type:
+                if isinstance(_expected_type, ir.IntType):
+                    _type = _expected_type
+            return Value(ir.Constant(_type, int(_int)), _type)
+
         elif expr.children[0].data == "decimal":
             raise NotImplementedError()
+
         elif expr.children[0].data == "fun_call":
-            print(expr.pretty())
             _name = expr.children[0].children[0].children[0].value
-            _args = self._ast_fun_call_args(builder, expr.children[0])  # TODO: implement Function._ast_fun_call_args
             _func: ir.Function = self.resolve_name(_name).type  # type: ignore
-            print(f"{_name}({_args})")
-            return Value(_func.ftype.return_type, builder.call(_func, _args))
+            _ftype: ir.FunctionType = _func.ftype
+            _args = self._ast_fun_call_args(builder, expr.children[0], _ftype)
+            builder.call(_func, _args)
+            return Value(builder.call(_func, _args), _ftype.return_type)
+
         elif expr.children[0].data == "name":
             _name = expr.children[0].children[0].value
             return self.resolve_name(_name)
+
         elif expr.children[0].data == "type":
             raise NotImplementedError()
+
         elif expr.children[0].data == "expression" and len(expr.children) == 1:
             return self.as_value(builder, expr.children[0])
+
         elif expr.children[0].data == "expression" and len(expr.children) == 3:
             _left = self.as_value(builder, expr.children[0])
             _right = self.as_value(builder, expr.children[2])
@@ -167,10 +185,49 @@ class Function:
                 return
         builder.ret_void()
 
+    def _ast_fun_call_args(
+            self, builder: ir.IRBuilder, node: lark.Tree[lark.Token], _for_func: ir.FunctionType
+    ) -> list[ir.Value]:
+        args: list[ir.Value] = []
+        arg_types = _for_func.args
+        print(arg_types)
+        for ii, jj in enumerate(node.children[1:]):
+            args.append(self.as_value(builder, jj, arg_types[ii]).value)
+        print(args)
+        return args
+
 
 def compile_module(name: str, ast: lark.Tree[lark.Token]) -> ir.Module:
     ll_mod = ir.Module(name)
 
+    # compile linux syscall
+    syscall_types: dict[int, ir.FunctionType] = {}
+    syscall_funcs: dict[int, ir.Function] = {}
+    for ii in range(0, 6):
+        syscall_types[ii] = ir.FunctionType(BUILTIN_TYPES["int"], [BUILTIN_TYPES["int"]] * (ii + 1))
+        syscall_funcs[ii] = ir.Function(ll_mod, syscall_types[ii], f"th_syscall{ii}")
+        block = syscall_funcs[ii].append_basic_block("entry")
+        builder = ir.IRBuilder(block)
+        if ii > 0:
+            builder.store_reg(syscall_funcs[ii].args[0], BUILTIN_TYPES["int"], "rax")  # syscall NR (rax)
+            if ii > 1:
+                builder.store_reg(syscall_funcs[ii].args[1], BUILTIN_TYPES["int"], "rdi")  # arg0 (rdi)
+                if ii > 2:
+                    builder.store_reg(syscall_funcs[ii].args[2], BUILTIN_TYPES["int"], "rsi")  # arg1 (rsi)
+                    if ii > 3:
+                        builder.store_reg(syscall_funcs[ii].args[3], BUILTIN_TYPES["int"], "rdx")  # arg2 (rdx)
+                        if ii > 4:
+                            builder.store_reg(syscall_funcs[ii].args[4], BUILTIN_TYPES["int"], "r10")  # arg3 (r10)
+                            if ii > 5:
+                                builder.store_reg(syscall_funcs[ii].args[5], BUILTIN_TYPES["int"], "r8")  # arg4 (r8)
+                                if ii > 6:
+                                    builder.store_reg(syscall_funcs[ii].args[2], BUILTIN_TYPES["int"],
+                                                      "r9")  # arg5 (r9)
+
+        builder.asm(ir.FunctionType(ir.VoidType(), ()), "syscall", "", (), True, f"th_syscall_asm")
+        builder.ret(builder.load_reg(BUILTIN_TYPES["int"], "rax"))
+
+    # compile functions from AST
     for ii in ast.children:
         node = ii.children[0]
         match node.data:

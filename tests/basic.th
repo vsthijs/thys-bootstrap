@@ -6,6 +6,6 @@ func sub (a i64, b i64) i64 {
     a - b
 }
 
-func main() i32 {
-    sub(0, 1)
+func main() {
+    sub(0, 1);
 }

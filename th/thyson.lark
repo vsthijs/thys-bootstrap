@@ -39,8 +39,8 @@ fun_type: "(" _fun_type_arg_list? ")" type?
 _fun_type_arg_list: _fun_type_arg | _fun_type_arg "," _fun_type_arg_list
 _fun_type_arg: name type
 
-fun_call: name "(" fun_call_args? ")"
-fun_call_args: expression | expression "," fun_call_args
+fun_call: name "(" _fun_call_args? ")"
+_fun_call_args: expression | expression "," _fun_call_args
 
 string: ESCAPED_STRING
 integer: SIGNED_NUMBER
